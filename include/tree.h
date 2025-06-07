@@ -1,48 +1,36 @@
+#pragma once
 // Copyright 2022 NNTU-CS
 #ifndef INCLUDE_TREE_H_
 #define INCLUDE_TREE_H_
 
-#include <algorithm>
-#include <cstdint>
-#include <numeric>
-#include <string>
+#include <memory>
 #include <vector>
 
-struct Node {
-  char n;
-  std::vector<Node*> children;
-
-  explicit Node(char val);
-  ~Node();
-
-  Node(const Node&) = delete;
-  Node& operator=(const Node&) = delete;
-  Node(Node&&) = delete;
-  Node& operator=(Node&&) = delete;
+struct TreeNode {
+  char data;
+  std::vector<std::shared_ptr<TreeNode>> childNodes;
+  explicit TreeNode(char val) : data(val) {}
 };
 
 class PMTree {
  private:
-  std::vector<Node*> rt_child;
-  int size;
+  std::shared_ptr<TreeNode> rootNode;
+  int permutationsCount;
 
-  void buildSubtree(Node* par, std::vector<char> avail_ch);
+  void constructTree(std::shared_ptr<TreeNode> node,
+                     const std::vector<char>& elements);
+  void cleanupTree(std::shared_ptr<TreeNode> node);
 
  public:
-  explicit PMTree(std::vector<char> in);
+  explicit PMTree(const std::vector<char>& elements);
   ~PMTree();
 
-  PMTree(const PMTree&) = delete;
-  PMTree& operator=(const PMTree&) = delete;
-  PMTree(PMTree&&) = delete;
-  PMTree& operator=(PMTree&&) = delete;
-
-  const std::vector<Node*>& getRootChild() const { return rt_child; }
-  int getSize() const { return size; }
+  std::shared_ptr<TreeNode> getRoot() const;
+  int getSize() const;
 };
 
 std::vector<std::vector<char>> getAllPerms(PMTree& tree);
-std::vector<char> getPerm1(PMTree& tree, int n);
-std::vector<char> getPerm2(PMTree& tree, int n);
+std::vector<char> getPerm1(PMTree& tree, int num);
+std::vector<char> getPerm2(PMTree& tree, int num);
 
-#endif  // INCLUDE_TREE_H_
+#endif
