@@ -1,174 +1,92 @@
 // Copyright 2022 NNTU-CS
 #include <algorithm>
-#include <cstdint>
-#include <numeric>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <locale>
+#include <memory>
 #include <vector>
 
 #include "tree.h"
 
-Node::Node(char val) : n(val) {}
+PMTree::PMTree(const std::vector<char>& elements) : permutationsCount(0) {
+  rootNode = std::make_shared<TreeNode>(0);
+  constructTree(rootNode, elements);
+}
 
-Node::~Node() {
-  for (Node* child : children) {
-    delete child;
+PMTree::~PMTree() { cleanupTree(rootNode); }
+
+void PMTree::constructTree(std::shared_ptr<TreeNode> node,
+                           const std::vector<char>& remaining) {
+  std::vector<char> sorted = remaining;
+  std::sort(sorted.begin(), sorted.end());
+
+  for (size_t i = 0; i < sorted.size(); ++i) {
+    char val = sorted[i];
+    auto child = std::make_shared<TreeNode>(val);
+    node->childNodes.push_back(child);
+
+    std::vector<char> next = sorted;
+    next.erase(next.begin() + i);
+    constructTree(child, next);
   }
 }
 
-void PMTree::buildSubtree(Node* parent, std::vector<char> avail_ch) {
-  if (avail_ch.empty()) {
-    return;
-  }
-
-  for (char cur_ch : avail_ch) {
-    Node* child_node = new Node(cur_ch);
-    parent->children.push_back(child_node);
-
-    std::vector<char> next_avail_ch;
-    for (char c : avail_ch) {
-      if (c != cur_ch) {
-        next_avail_ch.push_back(c);
-      }
-    }
-    buildSubtree(child_node, next_avail_ch);
-  }
+void PMTree::cleanupTree(std::shared_ptr<TreeNode> node) {
+  node->childNodes.clear();
 }
 
-PMTree::PMTree(std::vector<char> in)
-    : size(static_cast<int>(in.size())) {
-  std::vector<char> sorted_in = in;
-  std::sort(sorted_in.begin(), sorted_in.end());
+std::shared_ptr<TreeNode> PMTree::getRoot() const { return rootNode; }
 
-  for (char rt_ch : sorted_in) {
-    Node* rt_child_node = new Node(rt_ch);
-    rt_child.push_back(rt_child_node);
+int PMTree::getSize() const { return permutationsCount; }
 
-    std::vector<char> remaining_ch;
-    for (char c : sorted_in) {
-      if (c != rt_ch) {
-        remaining_ch.push_back(c);
-      }
-    }
-    buildSubtree(rt_child_node, remaining_ch);
-  }
-}
-
-PMTree::~PMTree() {
-  for (Node* node : rt_child) {
-    delete node;
-  }
-}
-
-namespace {
-
-void getAllPermsRecursive(Node* node, std::vector<char>& cur_perm,
-                          std::vector<std::vector<char>>& all_perms_list) {
-  cur_perm.push_back(node->n);
-
-  if (node->children.empty()) {
-    all_perms_list.push_back(cur_perm);
+void collectPermutations(std::shared_ptr<TreeNode> node,
+                         std::vector<char>& path,
+                         std::vector<std::vector<char>>& result) {
+  if (node->data != 0) path.push_back(node->data);
+  if (node->childNodes.empty()) {
+    result.push_back(path);
   } else {
-    for (Node* child : node->children) {
-      getAllPermsRecursive(child, cur_perm, all_perms_list);
+    for (auto child : node->childNodes) {
+      collectPermutations(child, path, result);
     }
   }
-  cur_perm.pop_back();
+  if (!path.empty() && node->data != 0) path.pop_back();
 }
-
-int64_t factorial(int n) {
-  if (n < 0) {
-    return 0;
-  }
-  if (n == 0) {
-    return 1;
-  }
-  int64_t res = 1;
-  for (int i = 1; i <= n; ++i) {
-    if (__builtin_mul_overflow(res, i, &res)) {
-      return -1;
-    }
-  }
-  return res;
-}
-
-}  // namespace
 
 std::vector<std::vector<char>> getAllPerms(PMTree& tree) {
-  std::vector<std::vector<char>> all_perms_list;
-  std::vector<char> cur_perm;
-  for (Node* root_child : tree.getRootChild()) {
-    getAllPermsRecursive(root_child, cur_perm, all_perms_list);
-  }
-  return all_perms_list;
+  std::vector<std::vector<char>> result;
+  std::vector<char> path;
+  collectPermutations(tree.getRoot(), path, result);
+  return result;
 }
 
 std::vector<char> getPerm1(PMTree& tree, int num) {
-  if (num <= 0) {
-    return {};
+  auto perms = getAllPerms(tree);
+  return (num > 0 && num <= static_cast<int>(perms.size()))
+             ? perms[num - 1]
+             : std::vector<char>{};
+}
+
+std::vector<char> getPermByIndex(std::shared_ptr<TreeNode> node, int& index,
+                                 int target) {
+  if (node->childNodes.empty()) {
+    ++index;
+    return (index == target) ? std::vector<char>{node->data}
+                             : std::vector<char>{};
   }
-  std::vector<std::vector<char>> all_perms = getAllPerms(tree);
-  if (num > static_cast<int>(all_perms.size())) {
-    return {};
+
+  for (auto child : node->childNodes) {
+    auto result = getPermByIndex(child, index, target);
+    if (!result.empty()) {
+      if (node->data != 0) result.insert(result.begin(), node->data);
+      return result;
+    }
   }
-  return all_perms[num - 1];
+  return {};
 }
 
 std::vector<char> getPerm2(PMTree& tree, int num) {
-  std::vector<char> result_perm;
-  const int n = tree.getSize();
-
-  if (num <= 0) {
-    return {};
-  }
-
-  const int64_t total_perms = factorial(n);
-  if (total_perms == -1 || num > total_perms) {
-    return {};
-  }
-
-  if (n == 0) {
-    return {};
-  }
-
-  std::vector<Node*> cur_level_nodes = tree.getRootChild();
-  int64_t k = num - 1;
-
-  result_perm.reserve(static_cast<size_t>(n));
-
-  for (int i = 0; i < n; ++i) {
-    if (cur_level_nodes.empty()) {
-      return {};
-    }
-
-    const int remaining_elements_to_permute = n - 1 - i;
-    int64_t permutations_per_branch = factorial(remaining_elements_to_permute);
-
-    if (permutations_per_branch == -1) {
-      return {};
-    }
-
-    if (permutations_per_branch == 0) {
-      if (remaining_elements_to_permute > 0) {
-        return {};
-      }
-      permutations_per_branch = 1;
-    }
-
-    int child_index = 0;
-    if (permutations_per_branch > 0) {
-      child_index = static_cast<int>(k / permutations_per_branch);
-    }
-
-    if (child_index >= static_cast<int>(cur_level_nodes.size())) {
-      return {};
-    }
-
-    Node* chosen_node = cur_level_nodes[child_index];
-    result_perm.push_back(chosen_node->n);
-
-    if (i < n - 1) {
-      k %= permutations_per_branch;
-      cur_level_nodes = chosen_node->children;
-    }
-  }
-  return result_perm;
+  int index = 0;
+  return getPermByIndex(tree.getRoot(), index, num);
 }
